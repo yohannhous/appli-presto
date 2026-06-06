@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Presto Café 786 · Menu Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Raleway:ital,wght@0,300;0,400;0,600;0,700;0,800;0,900;1,700;1,900&family=Playfair+Display:ital,wght@0,700;0,900;1,700;1,900&display=swap" rel="stylesheet">
+<script>
+/* Pré-intègre les polices du poster en base64 pour l'export dom-to-image-more.
+   Le <link> Google Fonts déclenche une SecurityError (CORS) quand dom-to-image-more
+   tente de lire cssRules — on contourne en injectant un <style> same-origin. */
+var _gFontsReady=(function(){
+  var url='https://fonts.googleapis.com/css2?family=Pacifico&family=Raleway:wght@700;800&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap';
+  return fetch(url).then(function(r){return r.text()}).then(function(css){
+    var seen={};
+    var fontUrls=[...css.matchAll(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+)\)/g)]
+      .map(function(m){return m[1]}).filter(function(u){return seen[u]?false:(seen[u]=true)});
+    return Promise.all(fontUrls.map(function(u){
+      return fetch(u).then(function(r){return r.blob()}).then(function(b){
+        return new Promise(function(ok){
+          var fr=new FileReader();
+          fr.onload=function(){ok([u,fr.result])};
+          fr.onerror=function(){ok(null)};
+          fr.readAsDataURL(b);
+        });
+      }).catch(function(){return null});
+    })).then(function(pairs){
+      pairs.forEach(function(p){
+        if(p) css=css.split('url('+p[0]+')').join('url('+p[1]+')');
+      });
+      var s=document.createElement('style');
+      s.id='gfonts-embedded';
+      s.textContent=css;
+      document.head.appendChild(s);
+    });
+  }).catch(function(){});
+})();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dom-to-image-more/3.2.0/dom-to-image-more.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ui-bg:#0e0e1a;--ui-panel:#16162a;--ui-card:#1e1e38;--ui-border:#2e2e50;
+  --ui-gold:#f0c040;--ui-orange:#e8820c;--ui-green:#2ecc71;--ui-red:#e74c3c;
+  --ui-text:#e4e4f0;--ui-muted:#666680;--pw:432px;--ph:768px;
+}
+html,body{font-family:'Raleway',sans-serif;background:var(--ui-bg);color:var(--ui-text);height:100%;overflow:hidden}
+
+/* TOP BAR */
+.topbar{height:52px;background:var(--ui-panel);border-bottom:1px solid var(--ui-border);
+  display:flex;align-items:center;padding:0 18px;gap:12px;
+  box-shadow:0 2px 18px rgba(0,0,0,.5);z-index:100;position:relative}
+.tb-title{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:900;font-style:italic;color:var(--ui-gold)}
+.tb-sub{font-size:.6rem;color:var(--ui-muted);text-transform:uppercase;letter-spacing:3px}
+.tb-sep{flex:1}
+.tb-badge{background:var(--ui-card);border:1px solid var(--ui-border);border-radius:20px;padding:3px 12px;font-size:.62rem;color:var(--ui-muted)}
+
+/* LAYOUT */
+.layout{display:flex;height:calc(100vh - 52px)}
+
+/* EDITOR */
+.editor{width:350px;flex-shrink:0;background:var(--ui-panel);border-right:1px solid var(--ui-border);padding:16px;overflow-y:auto}
+.editor::-webkit-scrollbar{width:4px}
+.editor::-webkit-scrollbar-track{background:#0a0a14}
+.editor::-webkit-scrollbar-thumb{background:#333355;border-radius:4px}
+.shdr{font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:var(--ui-gold);
+  margin:16px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--ui-border);display:flex;align-items:center;gap:6px}
+.shdr:first-child{margin-top:0}
+.flbl{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--ui-muted);margin:9px 0 4px}
+.fi{width:100%;background:var(--ui-card);border:1px solid var(--ui-border);border-radius:8px;
+  color:var(--ui-text);font-family:'Raleway',sans-serif;font-size:.86rem;padding:8px 10px;outline:none;transition:border-color .2s}
+.fi:focus{border-color:var(--ui-gold)}
+.fi::placeholder{color:#444460}
+.fi-row{display:flex;gap:7px}.fi-row .fi{flex:1}
+.fi-sm{width:70px!important;flex:0 0 70px!important;text-align:center}
+
+/* CHIPS */
+.chips-box{background:var(--ui-card);border:1px solid var(--ui-border);border-radius:8px;padding:8px;margin-top:3px}
+.chips-lbl{font-size:.54rem;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--ui-orange);margin-bottom:6px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;min-height:24px}
+.chip{background:var(--ui-panel);border:1px solid var(--ui-border);border-radius:20px;
+  padding:3px 9px;font-size:.72rem;cursor:pointer;user-select:none;transition:all .15s;color:rgba(228,228,240,.4)}
+.chip.active{background:rgba(232,130,12,.18);border-color:var(--ui-orange);color:var(--ui-text)}
+.chip:hover{border-color:var(--ui-gold)}
+.chip-empty{font-size:.72rem;color:var(--ui-muted);font-style:italic}
+.add-row{display:flex;gap:6px;margin-top:7px}
+.add-row .fi{font-size:.8rem;padding:6px 9px}
+.btn-add{background:var(--ui-orange);border:none;color:#fff;border-radius:7px;
+  padding:6px 12px;font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .2s;flex-shrink:0}
+.btn-add:hover{background:#d06008}
+
+/* PLAT EDITOR */
+.plat-editor-lbl{font-size:.6rem;font-weight:800;color:var(--ui-gold);text-transform:uppercase;letter-spacing:1.5px;margin:4px 0 6px}
+.plat-editor-hdr{display:flex;align-items:center;justify-content:space-between;margin:4px 0 6px}
+.plat-editor-hdr span{font-size:.6rem;font-weight:800;color:var(--ui-gold);text-transform:uppercase;letter-spacing:1.5px}
+.btn-del-plat{background:rgba(231,76,60,.15);border:1px solid rgba(231,76,60,.3);color:var(--ui-red);
+  border-radius:6px;padding:3px 9px;font-size:.7rem;font-weight:700;cursor:pointer;transition:background .2s}
+.btn-del-plat:hover{background:var(--ui-red);color:#fff}
+.plat-sep-editor{border:none;border-top:1px dashed var(--ui-border);margin:10px 0}
+/* Autocomplete */
+.sugg-wrap{position:relative}
+.sugg{position:absolute;left:0;right:0;top:calc(100% + 2px);background:#1e1e38;
+  border:1px solid var(--ui-border);border-radius:8px;z-index:300;display:none;
+  max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.6)}
+.sugg.open{display:block}
+.si{padding:7px 12px;cursor:pointer;font-size:.8rem;color:var(--ui-text);
+  border-bottom:1px solid rgba(255,255,255,.04);transition:background .12s}
+.si:last-child{border-bottom:none}
+.si:hover{background:#2a2a45}
+.si em{color:var(--ui-gold);font-style:normal;font-weight:700}
+.si-add{color:var(--ui-muted);font-style:italic}
+.si-add strong{color:var(--ui-text);font-style:normal}
+.jrow .sugg-wrap,.salade-row .sugg-wrap{flex:1;min-width:0}
+.btn-add-plat{background:none;border:1px dashed var(--ui-border);border-radius:8px;color:var(--ui-muted);
+  padding:8px;width:100%;font-family:'Raleway',sans-serif;font-size:.78rem;cursor:pointer;margin-top:6px;
+  transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-add-plat:hover{border-color:var(--ui-gold);color:var(--ui-gold)}
+
+/* TOGGLE */
+.toggle-row{display:flex;align-items:center;gap:10px;margin:8px 0 4px}
+.toggle-lbl{font-size:.76rem;font-weight:600;flex:1}
+.toggle{position:relative;width:36px;height:20px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-track{position:absolute;inset:0;background:#333355;border-radius:20px;cursor:pointer;transition:background .2s}
+.toggle input:checked+.toggle-track{background:var(--ui-green)}
+.toggle-track::after{content:'';position:absolute;top:3px;left:3px;width:14px;height:14px;
+  background:#fff;border-radius:50%;transition:transform .2s}
+.toggle input:checked+.toggle-track::after{transform:translateX(16px)}
+
+/* ROWS */
+.salade-row,.jrow{display:flex;gap:6px;align-items:center;margin-bottom:5px}
+.salade-row .fi,.jrow .fi{font-size:.82rem;padding:7px 9px}
+.btn-del-row{background:rgba(231,76,60,.12);border:1px solid var(--ui-border);color:var(--ui-red);
+  border-radius:7px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;flex-shrink:0;font-size:.95rem;transition:background .2s}
+.btn-del-row:hover{background:var(--ui-red);color:#fff}
+/* Onglet dépliable */
+.shdr-toggle{cursor:pointer;user-select:none;justify-content:space-between}
+.shdr-toggle:hover{color:#fff}
+.shdr-arrow{font-style:normal;font-size:.7rem;transition:transform .25s;margin-left:auto}
+.shdr-toggle.open .shdr-arrow{transform:rotate(180deg)}
+.collapsible{overflow:hidden;max-height:0;transition:max-height .3s ease,opacity .25s}
+.collapsible.open{max-height:700px}
+/* Position sliders */
+.pos-row{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+.pos-lbl{font-size:.62rem;color:var(--ui-muted);width:62px;flex-shrink:0}
+.pos-slider{flex:1;accent-color:var(--ui-orange);height:3px;cursor:pointer}
+.pos-val{font-size:.7rem;font-weight:700;color:var(--ui-text);width:32px;text-align:right;flex-shrink:0}
+
+.btn-add-line{background:none;border:1px dashed var(--ui-border);border-radius:8px;color:var(--ui-muted);
+  padding:7px;width:100%;font-family:'Raleway',sans-serif;font-size:.78rem;cursor:pointer;margin-top:4px;transition:all .2s}
+.btn-add-line:hover{border-color:var(--ui-gold);color:var(--ui-gold)}
+
+/* PHOTOS */
+.photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+.pslot{position:relative;aspect-ratio:1;border:none;border-radius:10px;overflow:hidden;
+  cursor:pointer;transition:border-color .2s;background:var(--ui-card);
+  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px}
+.pslot:hover{border-color:var(--ui-gold)}
+.pslot-ico{font-size:1.4rem;pointer-events:none}
+.pslot-lbl{font-size:.62rem;color:var(--ui-muted);text-align:center;pointer-events:none}
+.pslot img.prev{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:8px;pointer-events:none}
+.pslot input[type=file]{display:none}
+
+/* BUTTONS */
+.btn{border:none;border-radius:9px;padding:10px 14px;font-family:'Raleway',sans-serif;
+  font-size:.82rem;font-weight:700;cursor:pointer;transition:all .2s;
+  display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:7px}
+.btn-gold{background:var(--ui-gold);color:#111}.btn-gold:hover{background:#ffe066}
+.btn-orange{background:var(--ui-orange);color:#fff}.btn-orange:hover{background:#d06008}
+.btn-green{background:var(--ui-green);color:#fff}.btn-green:hover{background:#27ae60}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.export-note{font-size:.61rem;color:var(--ui-muted);text-align:center;margin-top:5px;line-height:1.7}
+
+/* CONTEXT MENU */
+.ctx-menu{position:fixed;background:#1e1e38;border:1px solid var(--ui-border);border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.75);z-index:9999;min-width:200px;overflow:hidden;display:none}
+.ctx-menu.open{display:block}
+.ctx-item{padding:10px 15px;font-size:.82rem;cursor:pointer;color:var(--ui-text);
+  display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--ui-border);transition:background .15s}
+.ctx-item:last-child{border-bottom:none}
+.ctx-item:hover{background:#2a2a45}
+.ctx-item.danger{color:var(--ui-red)}.ctx-item.danger:hover{background:rgba(231,76,60,.15)}
+
+/* MODAL */
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9998;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;visibility:hidden;transition:all .2s;backdrop-filter:blur(4px)}
+.modal-ov.open{opacity:1;visibility:visible}
+.modal-box{background:#1e1e38;border:1px solid var(--ui-border);border-radius:14px;
+  padding:22px;min-width:290px;max-width:88vw;box-shadow:0 20px 60px rgba(0,0,0,.8);
+  transform:scale(.9);transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
+.modal-ov.open .modal-box{transform:scale(1)}
+.modal-ttl{font-size:.9rem;font-weight:700;color:var(--ui-gold);margin-bottom:14px}
+.modal-inp{width:100%;background:var(--ui-card);border:1px solid var(--ui-border);border-radius:8px;
+  color:#fff;font-family:'Raleway',sans-serif;font-size:.9rem;padding:9px 13px;outline:none;
+  margin-bottom:14px;transition:border-color .2s}
+.modal-inp:focus{border-color:var(--ui-gold)}
+.modal-btns{display:flex;gap:9px;justify-content:flex-end}
+.modal-cancel{background:none;border:1px solid var(--ui-border);border-radius:8px;color:var(--ui-muted);
+  padding:8px 17px;cursor:pointer;font-family:'Raleway',sans-serif;font-size:.82rem;transition:all .2s}
+.modal-cancel:hover{border-color:#888;color:#fff}
+.modal-ok{background:var(--ui-gold);border:none;border-radius:8px;color:#111;
+  padding:8px 17px;cursor:pointer;font-family:'Raleway',sans-serif;font-size:.82rem;font-weight:700}
+.modal-ok:hover{background:#ffe066}
+
+/* TOAST */
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(60px);
+  background:#1e1e38;border:1px solid var(--ui-border);border-radius:10px;color:#fff;
+  padding:9px 20px;font-size:.82rem;z-index:9997;opacity:0;
+  transition:all .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;
+  box-shadow:0 8px 28px rgba(0,0,0,.6);pointer-events:none}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.ok{border-color:var(--ui-green)}#toast.info{border-color:var(--ui-gold)}#toast.err{border-color:var(--ui-red)}
+
+/* POSTER PANEL */
+.poster-panel{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:22px;overflow:auto;background:var(--ui-bg)}
+#psw{transform-origin:top center}
+
+/* POSTER */
+#poster{width:var(--pw);height:var(--ph);position:relative;overflow:hidden;flex-shrink:0;
+  border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.04)}
+#poster .pbg{position:absolute;inset:0;z-index:1;overflow:hidden}
+#poster .pbg img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+#poster .pov{position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:
+    linear-gradient(to right,rgba(0,0,0,.52) 0%,rgba(0,0,0,.04) 48%,rgba(0,0,0,.2) 100%),
+    linear-gradient(to bottom,rgba(0,0,0,.1) 0%,transparent 22%,transparent 62%,rgba(0,0,0,.42) 100%)}
+
+/* Logo — position applied via JS */
+#poster .p-logo{position:absolute;z-index:12}
+#poster .p-logo img{width:100%;height:auto;display:block;
+  filter:drop-shadow(0 2px 14px rgba(0,0,0,.8)) drop-shadow(0 0 8px rgba(0,0,0,.6)) brightness(1.08)}
+
+/* Food circle — no border, slightly more centered */
+#poster .p-food{position:absolute;top:-4%;right:-6%;width:56%;
+  aspect-ratio:1;border-radius:50%;overflow:hidden;z-index:9}
+#poster .p-food img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* Juice circle — no border */
+#poster .p-juice{position:absolute;bottom:-4%;right:-6%;width:50%;
+  aspect-ratio:1;border-radius:50%;overflow:hidden;z-index:9}
+#poster .p-juice img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* Phone bar */
+#poster .p-phones{position:absolute;bottom:2.5%;right:2%;z-index:18;
+  background:linear-gradient(135deg,#b83e00 0%,#e8820c 50%,#cc6a00 100%);
+  border-radius:10px;padding:7px 16px;text-align:center;
+  box-shadow:0 4px 18px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.12)}
+#poster .p-phone-line{font-size:15px;font-weight:800;color:#fff;letter-spacing:1.8px;line-height:1.5;display:block;text-shadow:1px 1px 3px rgba(0,0,0,.4)}
+
+/* Content column (left side, flex) */
+#poster .p-col{position:absolute;top:0;left:0;width:63%;height:100%;
+  display:flex;flex-direction:column;overflow:hidden;z-index:14}
+#poster .p-col-top{flex:0 0 29%}
+#poster .p-col-bot{flex:0 0 11%}
+
+/* Banners — Pacifico + SVG organic shape */
+#poster .p-bw{flex-shrink:0;margin-bottom:3px;line-height:0}
+#poster .p-band{display:inline-block;position:relative;overflow:visible}
+#poster .p-band-img{display:block;position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none}
+#poster .p-band-txt{font-family:'Pacifico',cursive;font-size:28px;color:#fff;
+  text-shadow:1px 2px 6px rgba(0,0,0,.5);position:relative;z-index:1;
+  padding:14px 44px 14px 18px;white-space:nowrap;display:block;line-height:1.2}
+
+/* Plat block — reference style: name + dots + price */
+#poster .p-plat{flex-shrink:0;padding:5px 8px 3px 13px}
+#poster .p-prow{display:flex;align-items:baseline;gap:0}
+#poster .p-pnom{font-family:'Playfair Display',serif;font-weight:700;font-style:italic;
+  font-size:15.5px;color:#fffde7;text-shadow:1px 1px 4px rgba(0,0,0,.8);flex-shrink:1;min-width:0}
+#poster .p-pdots{flex:1;border-bottom:1px dotted rgba(255,255,255,.38);margin:0 6px 3px}
+#poster .p-prix{font-family:'Playfair Display',serif;font-weight:900;font-size:16.5px;
+  color:#f0c040;text-shadow:1px 2px 5px rgba(0,0,0,.7);white-space:nowrap;flex-shrink:0}
+#poster .p-acc{font-size:10.5px;color:rgba(255,255,255,.62);padding:1px 0 2px;font-style:italic;line-height:1.4}
+/* Shared rougails block */
+#poster .p-rou-block{flex-shrink:0;padding:3px 8px 3px 13px;margin-top:1px;
+  border-top:1px dotted rgba(255,255,255,.1)}
+#poster .p-rou-lbl{font-size:9px;font-weight:800;text-transform:uppercase;
+  letter-spacing:1.5px;color:rgba(255,190,80,.65);margin-bottom:1px}
+#poster .p-rou-val{font-size:10.5px;color:rgba(255,255,255,.58);line-height:1.4;font-style:italic}
+/* Barquette line */
+#poster .p-barq-line{flex-shrink:0;padding:3px 8px 2px 13px}
+#poster .p-barq-lbl{font-size:9.5px;font-style:italic;color:rgba(255,255,255,.6);margin-right:4px}
+#poster .p-barq-price{font-size:10px;font-weight:800;color:#f0c040;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+
+/* Plat separator */
+#poster .p-patsep{flex-shrink:0;text-align:center;font-size:11px;
+  color:rgba(255,255,255,.22);letter-spacing:5px;margin:2px 0 2px 10%}
+
+/* Salades */
+#poster .p-salade{flex-shrink:0;display:flex;align-items:flex-end;padding:2.5px 4px 2.5px 13px}
+#poster .p-snom{font-size:11.5px;font-weight:700;color:#f0c040;text-transform:uppercase;
+  letter-spacing:.5px;text-shadow:0 1px 4px rgba(0,0,0,.6);white-space:nowrap}
+#poster .p-sdots{flex:1;border-bottom:1px dotted rgba(255,255,255,.22);margin:0 5px 2px}
+#poster .p-sprix{font-size:11.5px;font-weight:700;color:#fff;white-space:nowrap}
+
+/* Decorative separator between sections */
+#poster .p-sep{flex:1 1 0;min-height:14px;max-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:4px 0}
+#poster .p-sep-line{width:58%;height:1px;background:linear-gradient(to right,transparent 0%,rgba(240,192,64,.12) 10%,rgba(240,192,64,.45) 50%,rgba(240,192,64,.12) 90%,transparent 100%)}
+#poster .p-sep-orn{font-size:13px;color:rgba(240,192,64,.55);letter-spacing:10px;padding-left:10px}
+/* col-bot absorbs leftover space when sep is capped */
+#poster .p-col-bot{flex:1 1 0;min-height:60px}
+
+/* Jus items */
+#poster .p-jitem{flex-shrink:0;display:flex;align-items:flex-end;
+  padding:3px 4px 3px 13px;border-bottom:1px dotted rgba(255,255,255,.12)}
+#poster .p-jitem:last-child{border-bottom:none}
+#poster .p-jnom{font-size:12px;font-weight:800;color:#f0c040;text-transform:uppercase;
+  letter-spacing:.7px;text-shadow:0 1px 4px rgba(0,0,0,.7);white-space:nowrap}
+#poster .p-jvol{font-size:10px;color:rgba(255,255,255,.5);margin-left:4px;white-space:nowrap}
+#poster .p-jdots{flex:1;border-bottom:1px dotted rgba(255,255,255,.25);margin:0 5px 2px}
+#poster .p-jprix{font-size:12px;font-weight:800;color:#fff;white-space:nowrap;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+
+@media print{
+  body{background:#000;overflow:visible}
+  .topbar,.editor{display:none!important}
+  .layout{height:auto}
+  .poster-panel{padding:0;overflow:visible;background:#000;display:block}
+  #psw{transform:none!important}
+  #poster{border-radius:0;box-shadow:none}
+  @page{size:A4 portrait;margin:0}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="tb-title">Presto Café 786</div>
+  <div class="tb-sub">Menu Builder</div>
+  <div class="tb-sep"></div>
+  <div class="tb-badge">v3.0</div>
+</div>
+
+<div class="layout">
+
+  <div class="editor">
+
+    <div class="shdr">🍽️ Plat du jour</div>
+    <div id="platEditors"></div>
+    <button class="btn-add-plat" id="btnAddPlat" onclick="addPlat()">＋ Ajouter un 2ème plat</button>
+
+    <div class="flbl" style="margin-top:10px">🌶️ Rougails <span style="opacity:.5;font-weight:400">(communs à tous les plats)</span></div>
+    <div class="chips-box">
+      <div class="chips-lbl">Appui long = modifier</div>
+      <div class="chips" id="rouChipsShared"></div>
+      <div class="add-row">
+        <input class="fi" id="rouInpShared" placeholder="Ajouter…" autocomplete="off">
+        <button class="btn-add" onclick="addSharedRou()">＋</button>
+      </div>
+    </div>
+
+    <div class="flbl" style="margin-top:8px">Supplément barquette</div>
+    <input class="fi" id="barquette" placeholder="Ex: +1.50€" style="width:115px" autocomplete="off">
+
+    <div class="shdr">🥗 Salades <span style="font-size:.55rem;opacity:.6;text-transform:none;letter-spacing:0">(optionnel)</span></div>
+    <div class="toggle-row">
+      <span class="toggle-lbl">Afficher section Salades</span>
+      <label class="toggle">
+        <input type="checkbox" id="toggleSalades" onchange="onToggleSalades()">
+        <span class="toggle-track"></span>
+      </label>
+    </div>
+    <div id="saladesSection" style="display:none">
+      <div id="saladesList"></div>
+      <button class="btn-add-line" onclick="addSalade()">＋ Ajouter une salade</button>
+    </div>
+
+    <div class="shdr">🥤 Jus naturels</div>
+    <div id="jusList"></div>
+    <button class="btn-add-line" onclick="addJus()">＋ Ajouter un jus</button>
+
+    <div class="shdr">📷 Photos <span style="font-size:.54rem;opacity:.5;text-transform:none;letter-spacing:0">clic · clic droit/long pour options</span></div>
+    <div class="photo-grid">
+      <div class="pslot" id="pslot-food" title="Clic = changer · Clic droit/long = options">
+        <span class="pslot-ico">🍛</span>
+        <span class="pslot-lbl">Photo plat</span>
+        <img class="prev" id="prevFood">
+      </div>
+      <div class="pslot" id="pslot-juice" title="Clic = changer · Clic droit/long = options">
+        <span class="pslot-ico">🍹</span>
+        <span class="pslot-lbl">Photo jus</span>
+        <img class="prev" id="prevJuice">
+      </div>
+    </div>
+    <input type="file" accept="image/*" id="pfile-food" style="display:none">
+    <input type="file" accept="image/*" id="pfile-juice" style="display:none">
+
+    <div class="shdr shdr-toggle" id="posTgl" onclick="togglePosPanel()">↔️ Position des images <span class="shdr-arrow">▼</span></div>
+    <div class="collapsible" id="posPanel">
+      <div class="flbl">🍛 Photo plat</div>
+      <div class="pos-row"><span class="pos-lbl">Horizontal</span><input type="range" class="pos-slider" id="foodRight"  min="-40" max="15"  step="1"><span class="pos-val" id="foodRightVal"></span></div>
+      <div class="pos-row"><span class="pos-lbl">Vertical</span>  <input type="range" class="pos-slider" id="foodTop"    min="-25" max="25"  step="1"><span class="pos-val" id="foodTopVal"></span></div>
+      <div class="pos-row"><span class="pos-lbl">Taille</span>    <input type="range" class="pos-slider" id="foodSize"   min="30"  max="80"  step="1"><span class="pos-val" id="foodSizeVal"></span></div>
+      <div class="pos-row"><span class="pos-lbl">Rotation</span>  <input type="range" class="pos-slider" id="foodRotate" min="-180" max="180" step="1"><span class="pos-val" id="foodRotateVal"></span></div>
+      <div class="flbl" style="margin-top:8px">🍹 Photo jus</div>
+      <div class="pos-row"><span class="pos-lbl">Horizontal</span><input type="range" class="pos-slider" id="juiceRight"   min="-40"  max="15"  step="1"><span class="pos-val" id="juiceRightVal"></span></div>
+      <div class="pos-row"><span class="pos-lbl">Vertical</span>  <input type="range" class="pos-slider" id="juiceBottom"  min="-25"  max="25"  step="1"><span class="pos-val" id="juiceBottomVal"></span></div>
+      <div class="pos-row"><span class="pos-lbl">Taille</span>    <input type="range" class="pos-slider" id="juiceSize"    min="30"   max="80"  step="1"><span class="pos-val" id="juiceSizeVal"></span></div>
+      <div class="pos-row"><span class="pos-lbl">Rotation</span>  <input type="range" class="pos-slider" id="juiceRotate"  min="-180" max="180" step="1"><span class="pos-val" id="juiceRotateVal"></span></div>
+      <div class="flbl" style="margin-top:8px">🏷️ Logo</div>
+      <div class="pos-row"><span class="pos-lbl">Horizontal</span><input type="range" class="pos-slider" id="logoLeft"   min="-20" max="60"  step="0.5"><span class="pos-val" id="logoLeftVal"></span></div>
+      <div class="pos-row"><span class="pos-lbl">Vertical</span>  <input type="range" class="pos-slider" id="logoTop"    min="-10" max="40"  step="0.5"><span class="pos-val" id="logoTopVal"></span></div>
+      <div class="pos-row"><span class="pos-lbl">Taille</span>    <input type="range" class="pos-slider" id="logoSize"   min="20"  max="80"  step="1"><span class="pos-val" id="logoSizeVal"></span></div>
+      <div class="pos-row"><span class="pos-lbl">Rotation</span>  <input type="range" class="pos-slider" id="logoRotate" min="-45" max="45"  step="1"><span class="pos-val" id="logoRotateVal"></span></div>
+    </div>
+
+    <div class="shdr">📞 Téléphones</div>
+    <div class="fi-row">
+      <input class="fi" id="tel1" placeholder="0693 30 12 16" autocomplete="off">
+      <input class="fi" id="tel2" placeholder="0262 37 44 81" autocomplete="off">
+    </div>
+
+    <div class="shdr">⬇️ Export</div>
+    <button class="btn btn-orange" id="btnPngHD" onclick="exportPNG(6)">🖨️ Télécharger PNG (6×)</button>
+    <button class="btn btn-green"  id="btnShare" onclick="shareMenu()">📤 Partager</button>
+    <div class="export-note">6× → 2592×4608 px (~265 DPI A4)</div>
+    <div style="height:20px"></div>
+  </div>
+
+  <div class="poster-panel" id="posterPanel">
+    <div id="psw">
+      <div id="poster">
+        <div class="pbg" id="pbg"><img id="pbgImg" src="fond.png" alt=""></div>
+        <div class="pov"></div>
+        <div class="p-logo"><img id="pLogoImg" alt=""></div>
+        <div class="p-food"><img id="pFoodImg" alt=""></div>
+        <div class="p-juice"><img id="pJuiceImg" alt=""></div>
+        <div class="p-col" id="pCol"></div>
+        <div class="p-phones">
+          <span class="p-phone-line" id="pTel1"></span>
+          <span class="p-phone-line" id="pTel2"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="ctx-menu" id="ctxMenu"></div>
+
+<div class="modal-ov" id="modalOv">
+  <div class="modal-box">
+    <div class="modal-ttl" id="modalTtl"></div>
+    <input class="modal-inp" id="modalInp" autocomplete="off">
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeModal()">Annuler</button>
+      <button class="modal-ok" onclick="confirmModal()">OK</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ── STATE ── */
+const S = {
+  plats: [{
+    nom:  '',
+    prix: '8.50€',
+    acc:   ['Riz', 'Lentilles', 'Pois du cap'],
+    accOn: [false, false, false],
+  }],
+  rougails:   ['Rougail Tomate', 'Rougail Concombre'],
+  rougailsOn: [false, false],
+  barquette: '+1.50€',
+  salades: [],
+  showSalades: false,
+  jus: [
+    { nom:'', vol:'25cl', prix:'2.50€' },
+    { nom:'', vol:'25cl', prix:'2.50€' },
+  ],
+  tel1: '0693 30 12 16',
+  tel2: '0262 37 44 81',
+  foodSrc:  'image 1.png',
+  juiceSrc: 'image 2.png',
+  foodPos:  { top:13,  right:-8, size:56, rotate:129 },
+  juicePos: { bottom:21, right:-6, size:51, rotate:-32 },
+  logoPos:  { top:-2, left:1.5, size:80, rotate:-5 },
+};
+
+const ASSETS = { bg:'fond.png', logo:'logo.png' };
+
+/* ── PERSISTANCE PRIX / VOLUMES ── */
+function savePriceSession() {
+  try {
+    localStorage.setItem('sv_prix_session', JSON.stringify({
+      platPrix: S.plats.map(p => p.prix),
+      jus: S.jus.map(j => ({ vol: j.vol, prix: j.prix })),
+      barquette: S.barquette,
+      tel1: S.tel1,
+      tel2: S.tel2,
+    }));
+  } catch(e) {}
+}
+
+function applyPriceSession() {
+  try {
+    const raw = localStorage.getItem('sv_prix_session');
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (saved.platPrix) saved.platPrix.forEach((prix, i) => { if (S.plats[i]) S.plats[i].prix = prix; });
+    if (saved.jus && saved.jus.length) {
+      while (S.jus.length < saved.jus.length) S.jus.push({ nom:'', vol:'25cl', prix:'2.50€' });
+      saved.jus.forEach((j, i) => { if (S.jus[i]) { S.jus[i].vol = j.vol; S.jus[i].prix = j.prix; } });
+    }
+    if (saved.barquette !== undefined) S.barquette = saved.barquette;
+    if (saved.tel1) S.tel1 = saved.tel1;
+    if (saved.tel2) S.tel2 = saved.tel2;
+  } catch(e) {}
+}
+
+/* ── BASE DE DONNÉES AUTOCOMPLÉTION ── */
+const BASE_PLATS = [
+  "Sauté de poulet aux pousses de soja","Émincé de poulet au poivre",
+  "Émincé de poulet aux haricots verts","Émincé de poulet massalé",
+  "Carry Poulet aux petits pois","Émincé de poulet aux petits pois",
+  "Sauté de poulet aux légumes","Sauté de poulet à la chinoise",
+  "Riz cantonais jambon de poulet","Ravitoto bœuf au coco",
+  "Sauté de poulet aux oignons","Poulet à la crème et champignons",
+  "Poêlé de légumes au blanc de poulet","Butter chicken",
+  "Carry crevettes au coco","Vindaye de thon","Poulet dakatine",
+  "Emincé de poulet au fenugrec","Riz cantonais et merguez",
+  "Romazava de Poulet au coco","Bol renversé",
+  "Riz cantonais crevettes sautées à l'ail","Briani au poulet",
+  "Poulet massalé","Sauté de poulet au combava et gingembre",
+  "Émincé de poulet à l'indienne","Émincé de poulet aux épices indiennes",
+  "Poulet aux trois merveilles","Poulet sauce moutarde",
+  "Riz cantonais jambon et poulet","Poulet aux poivrons et pommes de terre",
+  "Sauté de poulet à l'ananas","Rougail saucisses de poulet",
+  "Sauté mines escalope de poulet","Emincé de poulet sauce normande",
+  "Shop suey de poulet","Carry poulet aux petits pois",
+  "Sauté de poulet au gingembre","Poulet au citron et olives","Poulet coco"
+];
+const BASE_JUS = [
+  "Jus d'ananas","Jus de litchi","Jus de corossol","Jus de passion",
+  "Jus de mangue","Jus de goyavier","Jus d'orange pressé","Jus de Tamarin"
+];
+
+function loadSuggDB(key, base) {
+  try { const s=localStorage.getItem(key); if(s){const e=JSON.parse(s);return[...new Set([...base,...e])];} } catch(e) {}
+  return [...base];
+}
+function saveSuggDB(key, base, cur) {
+  try { localStorage.setItem(key, JSON.stringify(cur.filter(x=>!base.includes(x)))); } catch(e) {}
+}
+
+const BASE_SALADES = [];
+
+let PLATS_DB   = loadSuggDB('sv_plats',   BASE_PLATS);
+let JUS_DB     = loadSuggDB('sv_jus',     BASE_JUS);
+let SALADES_DB = loadSuggDB('sv_salades', BASE_SALADES);
+
+function hlText(t, q) {
+  if (!q) return escHtml(t);
+  const i = t.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return escHtml(t);
+  return escHtml(t.slice(0,i))+'<em>'+escHtml(t.slice(i,i+q.length))+'</em>'+escHtml(t.slice(i+q.length));
+}
+
+function makeSugg(inp, db, baseDb, lsKey, onSelect) {
+  // Envelopper dans un conteneur relatif pour positionner le dropdown
+  const wrap = document.createElement('div');
+  wrap.className = 'sugg-wrap';
+  inp.parentNode.insertBefore(wrap, inp);
+  wrap.appendChild(inp);
+  const box = document.createElement('div');
+  box.className = 'sugg';
+  wrap.appendChild(box);
+
+  function render() {
+    const q = inp.value.trim();
+    if (!q) { box.classList.remove('open'); return; }
+    const res = db.filter(d => d.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
+    const exact = db.find(d => d.toLowerCase() === q.toLowerCase());
+    const isNew = !exact && q.length > 2;
+    if (!res.length && !isNew) { box.classList.remove('open'); return; }
+    box.innerHTML = res.map((r,i) => `<div class="si" data-i="${i}">${hlText(r,q)}</div>`).join('')
+      + (isNew ? `<div class="si si-add">➕ Ajouter "<strong>${escHtml(q)}</strong>"</div>` : '');
+    box.classList.add('open');
+    box.querySelectorAll('.si').forEach((el, i) => {
+      // Clic normal : sélectionner
+      el.addEventListener('mousedown', ev => {
+        ev.preventDefault();
+        if (el.dataset.ctxHandled) { el.dataset.ctxHandled = ''; return; }
+        const val = el.classList.contains('si-add') ? q : res[i];
+        if (el.classList.contains('si-add') && !db.includes(q)) {
+          db.push(q); saveSuggDB(lsKey, baseDb, db);
+        }
+        inp.value = val; box.classList.remove('open'); onSelect(val);
+      });
+
+      // Clic droit / appui long : modifier ou supprimer (seulement sur suggestions existantes)
+      if (!el.classList.contains('si-add')) {
+        const showSuggCtx = (x, y) => {
+          const val = res[i];
+          openCtxMenu({x, y}, [
+            { icon:'✏️', label:`Renommer "${val}"`, action: () => {
+                openModal(`Renommer "${val}"`, val, nv => {
+                  if (!nv || nv === val) return;
+                  const idx = db.indexOf(val);
+                  if (idx >= 0) db[idx] = nv;
+                  saveSuggDB(lsKey, baseDb, db);
+                  render();
+                });
+              }
+            },
+            { icon:'🗑️', label:`Supprimer "${val}"`, danger: true, action: () => {
+                const idx = db.indexOf(val);
+                if (idx >= 0) db.splice(idx, 1);
+                saveSuggDB(lsKey, baseDb, db);
+                render();
+              }
+            },
+          ]);
+        };
+
+        el.addEventListener('contextmenu', ev => {
+          ev.preventDefault(); ev.stopPropagation();
+          el.dataset.ctxHandled = '1';
+          showSuggCtx(ev.clientX, ev.clientY);
+        });
+
+        let lpTimer = null, lpPos = null;
+        el.addEventListener('pointerdown', ev => {
+          if (ev.button !== 0) return;
+          lpPos = {x: ev.clientX, y: ev.clientY};
+          lpTimer = setTimeout(() => {
+            el.dataset.ctxHandled = '1';
+            showSuggCtx(lpPos.x, lpPos.y);
+          }, 900);
+        });
+        el.addEventListener('pointermove', ev => {
+          if (lpPos && Math.hypot(ev.clientX-lpPos.x, ev.clientY-lpPos.y) > 8) {
+            clearTimeout(lpTimer); lpPos = null;
+          }
+        });
+        el.addEventListener('pointerup',     () => { clearTimeout(lpTimer); lpPos = null; });
+        el.addEventListener('pointercancel', () => { clearTimeout(lpTimer); lpPos = null; });
+      }
+    });
+  }
+  inp.addEventListener('input', render);
+  inp.addEventListener('focus', render);
+  inp.addEventListener('blur', () => setTimeout(() => box.classList.remove('open'), 200));
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { box.classList.remove('open'); }
+    if (e.key === 'ArrowDown') {
+      const first = box.querySelector('.si');
+      if (first) { e.preventDefault(); first.focus(); }
+    }
+  });
+}
+
+/* ── INIT ── */
+window.addEventListener('DOMContentLoaded', () => {
+  applyPriceSession(); // restaure prix/volumes de la dernière session
+  document.getElementById('pbgImg').src = ASSETS.bg;
+  document.getElementById('pLogoImg').src  = ASSETS.logo;
+  document.getElementById('pFoodImg').src  = S.foodSrc;
+  document.getElementById('pJuiceImg').src = S.juiceSrc;
+  initPhotoSlots();
+  initPosSliders();
+  setupSharedRougailChipEvents();
+
+  const barqEl = document.getElementById('barquette');
+  barqEl.value = S.barquette;
+  barqEl.addEventListener('input', () => { S.barquette = barqEl.value; renderPoster(); savePriceSession(); });
+
+  const t1 = document.getElementById('tel1'), t2 = document.getElementById('tel2');
+  t1.value = S.tel1; t2.value = S.tel2;
+  t1.addEventListener('input', () => { S.tel1 = t1.value; renderPoster(); savePriceSession(); });
+  t2.addEventListener('input', () => { S.tel2 = t2.value; renderPoster(); savePriceSession(); });
+
+  initJusListeners();
+  initSaladesListeners();
+  renderPlatEditors();
+  renderJusList();
+  renderSaladesList();
+  renderPoster();
+  scalePoster();
+
+  window.addEventListener('resize', scalePoster);
+  document.addEventListener('click', e => { if (!e.target.closest('#ctxMenu')) closeCtxMenu(); });
+  document.getElementById('modalInp').addEventListener('keydown', e => {
+    if (e.key === 'Enter') confirmModal();
+    if (e.key === 'Escape') closeModal();
+  });
+});
+
+/* ── PLAT EDITORS ── */
+function renderPlatEditors() {
+  document.getElementById('platEditors').innerHTML =
+    S.plats.map((p, i) => buildPlatEditorHTML(p, i)).join('');
+
+  S.plats.forEach((plat, pi) => {
+    const nomEl  = document.getElementById(`pNom${pi}`);
+    const prixEl = document.getElementById(`pPrix${pi}`);
+    nomEl.value  = plat.nom;
+    prixEl.value = plat.prix;
+    nomEl.addEventListener('input',  () => { S.plats[pi].nom  = nomEl.value;  renderPoster(); });
+    prixEl.addEventListener('input', () => { S.plats[pi].prix = prixEl.value; renderPoster(); savePriceSession(); });
+    makeSugg(nomEl, PLATS_DB, BASE_PLATS, 'sv_plats', v => { S.plats[pi].nom = v; renderPoster(); });
+    document.getElementById(`accInp${pi}`)
+      .addEventListener('keydown', e => { if (e.key==='Enter') addAcc(pi); });
+    setupChipEvents(document.getElementById(`accChips${pi}`), pi, 'acc', 'accOn');
+    renderChipsForPlat(pi);
+  });
+
+  document.getElementById('btnAddPlat').style.display = S.plats.length < 2 ? 'flex' : 'none';
+  renderSharedRougailChips();
+}
+
+function buildPlatEditorHTML(plat, pi) {
+  return `<div class="plat-editor">
+    ${pi === 1
+      ? `<hr class="plat-sep-editor">
+         <div class="plat-editor-hdr">
+           <span>2ème plat</span>
+           <button class="btn-del-plat" onclick="removePlat(1)">× Supprimer</button>
+         </div>`
+      : `<div class="plat-editor-lbl">Plat principal</div>`}
+    <div class="flbl">Nom du plat</div>
+    <input class="fi" id="pNom${pi}" placeholder="Ex: Poulet à la crème…" autocomplete="off">
+    <div class="flbl">Prix</div>
+    <input class="fi" id="pPrix${pi}" placeholder="8.50€" style="width:110px" autocomplete="off">
+    <div class="flbl">Accompagnements</div>
+    <div class="chips-box">
+      <div class="chips-lbl">Appui long = modifier</div>
+      <div class="chips" id="accChips${pi}"></div>
+      <div class="add-row">
+        <input class="fi" id="accInp${pi}" placeholder="Ajouter…" autocomplete="off">
+        <button class="btn-add" onclick="addAcc(${pi})">＋</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderSharedRougailChips() {
+  renderChipSet(document.getElementById('rouChipsShared'), S.rougails, S.rougailsOn);
+}
+
+function addSharedRou() {
+  const inp = document.getElementById('rouInpShared');
+  const v = inp.value.trim(); if (!v) return;
+  S.rougails.push(v); S.rougailsOn.push(true);
+  inp.value = ''; renderSharedRougailChips(); renderPoster();
+}
+
+function setupSharedRougailChipEvents() {
+  const container = document.getElementById('rouChipsShared');
+  let lpTimer = null, didLP = false, downPos = null;
+  const showCtx = (chip, idx) => {
+    const name = S.rougails[idx];
+    openCtxMenu({x: chip.getBoundingClientRect().left, y: chip.getBoundingClientRect().bottom + 4}, [
+      { icon:'✏️', label:'Renommer', action: () => openModal(`Renommer "${name}"`, name, v => {
+          if (!v.trim()) return;
+          S.rougails[idx] = v.trim(); renderSharedRougailChips(); renderPoster();
+        })
+      },
+      { icon:'🗑️', label:`Supprimer "${name}"`, danger: true, action: () => {
+          S.rougails.splice(idx, 1); S.rougailsOn.splice(idx, 1);
+          renderSharedRougailChips(); renderPoster();
+        }
+      },
+    ]);
+  };
+  container.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    const chip = e.target.closest('.chip[data-cidx]');
+    if (!chip) return;
+    didLP = true;
+    showCtx(chip, parseInt(chip.dataset.cidx));
+  });
+  container.addEventListener('pointerdown', e => {
+    const chip = e.target.closest('.chip[data-cidx]');
+    if (!chip) return;
+    downPos = {x:e.clientX, y:e.clientY}; didLP = false;
+    lpTimer = setTimeout(() => { didLP = true; showCtx(chip, parseInt(chip.dataset.cidx)); }, LP_MS);
+  });
+  container.addEventListener('pointermove', e => {
+    if (!downPos) return;
+    if (Math.hypot(e.clientX-downPos.x, e.clientY-downPos.y) > 8) { clearTimeout(lpTimer); downPos = null; }
+  });
+  container.addEventListener('pointerup',     () => { clearTimeout(lpTimer); downPos = null; });
+  container.addEventListener('pointercancel', () => { clearTimeout(lpTimer); downPos = null; });
+  container.addEventListener('click', e => {
+    if (didLP) { didLP = false; return; }
+    const chip = e.target.closest('.chip[data-cidx]');
+    if (!chip) return;
+    const i = parseInt(chip.dataset.cidx);
+    S.rougailsOn[i] = !S.rougailsOn[i];
+    renderSharedRougailChips(); renderPoster();
+  });
+  document.getElementById('rouInpShared')
+    .addEventListener('keydown', e => { if (e.key==='Enter') addSharedRou(); });
+}
+
+function addPlat() {
+  if (S.plats.length >= 2) return;
+  S.plats.push({
+    nom: 'Deuxième plat', prix: '8.50€',
+    acc: [...S.plats[0].acc], accOn: S.plats[0].acc.map(() => true),
+  });
+  renderPlatEditors(); renderPoster();
+}
+
+function removePlat(pi) {
+  S.plats.splice(pi, 1);
+  renderPlatEditors(); renderPoster();
+}
+
+/* ── CHIPS (toggle + long press) ── */
+const LP_MS = 900;
+
+function setupChipEvents(container, pi, field, activeField) {
+  let lpTimer = null, didLP = false, downPos = null;
+
+  container.addEventListener('pointerdown', e => {
+    const chip = e.target.closest('.chip[data-cidx]');
+    if (!chip) return;
+    downPos = { x:e.clientX, y:e.clientY };
+    didLP = false;
+    lpTimer = setTimeout(() => {
+      didLP = true;
+      showChipCtx(chip, pi, field, activeField, parseInt(chip.dataset.cidx));
+    }, LP_MS);
+  });
+
+  container.addEventListener('pointermove', e => {
+    if (!downPos) return;
+    if (Math.hypot(e.clientX-downPos.x, e.clientY-downPos.y) > 8) {
+      clearTimeout(lpTimer); downPos = null;
+    }
+  });
+
+  container.addEventListener('pointerup',     () => { clearTimeout(lpTimer); downPos = null; });
+  container.addEventListener('pointercancel', () => { clearTimeout(lpTimer); downPos = null; });
+  container.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    const chip = e.target.closest('.chip[data-cidx]');
+    if (!chip) return;
+    didLP = true;
+    showChipCtx(chip, pi, field, activeField, parseInt(chip.dataset.cidx));
+  });
+
+  container.addEventListener('click', e => {
+    if (didLP) { didLP = false; return; }
+    const chip = e.target.closest('.chip[data-cidx]');
+    if (!chip) return;
+    const i = parseInt(chip.dataset.cidx);
+    S.plats[pi][activeField][i] = !S.plats[pi][activeField][i];
+    renderChipsForPlat(pi); renderPoster();
+  });
+}
+
+function showChipCtx(el, pi, field, activeField, idx) {
+  const name = S.plats[pi][field][idx];
+  openCtxMenu(el, [
+    { icon:'✏️', label:`Renommer`,
+      action: () => openModal(`Renommer "${name}"`, name, v => {
+        if (!v.trim()) return;
+        S.plats[pi][field][idx] = v.trim();
+        renderChipsForPlat(pi); renderPoster();
+      })
+    },
+    { icon:'🗑️', label:`Supprimer "${name}"`, danger: true,
+      action: () => {
+        S.plats[pi][field].splice(idx, 1);
+        S.plats[pi][activeField].splice(idx, 1);
+        renderChipsForPlat(pi); renderPoster();
+      }
+    },
+  ]);
+}
+
+function renderChipsForPlat(pi) {
+  renderChipSet(document.getElementById(`accChips${pi}`), S.plats[pi].acc, S.plats[pi].accOn);
+}
+
+function renderChipSet(container, arr, onArr) {
+  if (!container) return;
+  if (!arr.length) { container.innerHTML='<span class="chip-empty">Aucun élément</span>'; return; }
+  container.innerHTML = arr.map((item, i) =>
+    `<span class="chip ${onArr[i]?'active':''}" data-cidx="${i}">${escHtml(item)}</span>`
+  ).join('');
+}
+
+function addAcc(pi) {
+  const inp = document.getElementById(`accInp${pi}`);
+  const v = inp.value.trim(); if (!v) return;
+  S.plats[pi].acc.push(v); S.plats[pi].accOn.push(true);
+  inp.value=''; renderChipsForPlat(pi); renderPoster();
+}
+
+
+/* ── SALADES ── */
+function initSaladesListeners() {
+  const list = document.getElementById('saladesList');
+  list.addEventListener('input', e => {
+    const row = e.target.closest('[data-sidx]');
+    if (!row) return;
+    const i = parseInt(row.dataset.sidx), f = e.target.dataset.field;
+    if (!isNaN(i) && f && S.salades[i]) { S.salades[i][f] = e.target.value; renderPoster(); }
+  });
+  list.addEventListener('click', e => {
+    const btn = e.target.closest('[data-sdel]');
+    if (!btn) return;
+    S.salades.splice(parseInt(btn.dataset.sdel), 1);
+    renderSaladesList(); renderPoster();
+  });
+}
+
+function onToggleSalades() {
+  S.showSalades = document.getElementById('toggleSalades').checked;
+  document.getElementById('saladesSection').style.display = S.showSalades ? 'block' : 'none';
+  renderPoster();
+}
+
+function renderSaladesList() {
+  const c = document.getElementById('saladesList');
+  c.innerHTML = S.salades.map((s, i) => `
+    <div class="salade-row" data-sidx="${i}">
+      <input class="fi" placeholder="Nom de la salade" data-field="nom" autocomplete="off">
+      <input class="fi fi-sm" placeholder="6.50€" data-field="prix" autocomplete="off">
+      <button class="btn-del-row" data-sdel="${i}">×</button>
+    </div>`).join('');
+  S.salades.forEach((s, i) => {
+    const row = c.querySelector(`[data-sidx="${i}"]`);
+    const nomInp = row.querySelectorAll('input')[0];
+    nomInp.value = s.nom;
+    row.querySelectorAll('input')[1].value = s.prix;
+    makeSugg(nomInp, SALADES_DB, BASE_SALADES, 'sv_salades', v => { S.salades[i].nom = v; renderPoster(); });
+  });
+}
+
+function addSalade() {
+  S.salades.push({ nom:'Salade verte', prix:'6.50€' });
+  renderSaladesList(); renderPoster();
+}
+
+/* ── JUS ── */
+function initJusListeners() {
+  const list = document.getElementById('jusList');
+  list.addEventListener('input', e => {
+    const row = e.target.closest('[data-jidx]');
+    if (!row) return;
+    const i = parseInt(row.dataset.jidx), f = e.target.dataset.field;
+    if (!isNaN(i) && f && S.jus[i]) {
+      S.jus[i][f] = e.target.value; renderPoster();
+      if (f === 'vol' || f === 'prix') savePriceSession();
+    }
+  });
+  list.addEventListener('click', e => {
+    const btn = e.target.closest('[data-jdel]');
+    if (!btn) return;
+    S.jus.splice(parseInt(btn.dataset.jdel), 1);
+    renderJusList(); renderPoster();
+  });
+}
+
+function renderJusList() {
+  const c = document.getElementById('jusList');
+  c.innerHTML = S.jus.map((j, i) => `
+    <div class="jrow" data-jidx="${i}">
+      <input class="fi" placeholder="Nom du jus" data-field="nom" autocomplete="off">
+      <input class="fi fi-sm" placeholder="25cl" data-field="vol" autocomplete="off">
+      <input class="fi fi-sm" placeholder="2.50€" data-field="prix" autocomplete="off">
+      <button class="btn-del-row" data-jdel="${i}">×</button>
+    </div>`).join('');
+  S.jus.forEach((j, i) => {
+    const row = c.querySelector(`[data-jidx="${i}"]`);
+    const nomInp = row.querySelectorAll('input')[0];
+    nomInp.value = j.nom;
+    row.querySelectorAll('input')[1].value = j.vol;
+    row.querySelectorAll('input')[2].value = j.prix;
+    makeSugg(nomInp, JUS_DB, BASE_JUS, 'sv_jus', v => { S.jus[i].nom = v; renderPoster(); });
+  });
+}
+
+function addJus() {
+  S.jus.push({ nom:'Nouveau jus', vol:'25cl', prix:'2.50€' });
+  renderJusList(); renderPoster();
+}
+
+/* ── RENDER POSTER ── */
+function renderPoster() {
+  let col = '';
+  col += '<div class="p-col-top"></div>';
+
+  // ─ Menu du jour ─
+  col += makeBanner('Menu du jour');
+  S.plats.forEach((plat, pi) => {
+    if (pi > 0) col += '<div class="p-patsep">· · · · · · · ·</div>';
+    col += makePlatBlock(plat);
+  });
+
+  // Rougails partagés
+  const sharedRous = S.rougails.filter((_, i) => S.rougailsOn[i]);
+  if (sharedRous.length) {
+    col += `<div class="p-rou-block">
+      <div class="p-rou-lbl">Rougails :</div>
+      <div class="p-rou-val">${sharedRous.map(escHtml).join('  ·  ')}</div>
+    </div>`;
+  }
+
+  // Barquette supplement
+  if (S.barquette) {
+    col += `<div class="p-barq-line"><span class="p-barq-lbl">Barquette séparée</span><span class="p-barq-price">${escHtml(S.barquette)}</span></div>`;
+  }
+
+  // ─ Salades (optional) ─
+  if (S.showSalades && S.salades.length > 0) {
+    col += makeBanner('Salades fraîches', 'green');
+    S.salades.forEach(s => {
+      col += `<div class="p-salade">
+        <span class="p-snom">${escHtml(s.nom)}</span>
+        <span class="p-sdots"></span>
+        <span class="p-sprix">${escHtml(s.prix)}</span>
+      </div>`;
+    });
+  }
+
+  col += '<div class="p-sep"><div class="p-sep-line"></div><div class="p-sep-orn">✦ &nbsp; ✦ &nbsp; ✦</div><div class="p-sep-line"></div></div>';
+
+  // ─ Jus naturel ─
+  col += makeBanner('Jus naturel');
+  S.jus.forEach(j => {
+    col += `<div class="p-jitem">
+      <span class="p-jnom">${escHtml(j.nom)}</span>
+      <span class="p-jvol">${escHtml(j.vol)}</span>
+      <span class="p-jdots"></span>
+      <span class="p-jprix">${escHtml(j.prix)}</span>
+    </div>`;
+  });
+
+  col += '<div class="p-col-bot"></div>';
+  document.getElementById('pCol').innerHTML = col;
+  document.getElementById('pTel1').textContent = S.tel1;
+  document.getElementById('pTel2').textContent = S.tel2;
+}
+
+function makeBanner(text, color) {
+  const src = (color === 'green') ? 'banner-green.png' : 'banner-transparent.png';
+  return `<div class="p-bw"><div class="p-band">
+    <img class="p-band-img" src="${src}" alt="">
+    <span class="p-band-txt">&#10022; ${escHtml(text)} &#10022;</span>
+  </div></div>`;
+}
+
+function makePlatBlock(plat) {
+  const tags = plat.acc.filter((_, i) => plat.accOn[i]);
+  return `<div class="p-plat">
+    <div class="p-prow">
+      <span class="p-pnom">${escHtml(plat.nom)}</span>
+      <span class="p-pdots"></span>
+      <span class="p-prix">${escHtml(plat.prix)}</span>
+    </div>
+    ${tags.length ? `<div class="p-acc">${tags.map(escHtml).join(' · ')}</div>` : ''}
+  </div>`;
+}
+
+/* ── SCALE ── */
+/* ── CIRCLE & LOGO POSITION ── */
+function applyCirclePos() {
+  const food  = document.querySelector('#poster .p-food');
+  const juice = document.querySelector('#poster .p-juice');
+  food.style.top       = S.foodPos.top    + '%';
+  food.style.right     = S.foodPos.right  + '%';
+  food.style.width     = S.foodPos.size   + '%';
+  food.style.transform = S.foodPos.rotate ? 'rotate('+S.foodPos.rotate+'deg)' : '';
+  juice.style.bottom    = S.juicePos.bottom + '%';
+  juice.style.right     = S.juicePos.right  + '%';
+  juice.style.width     = S.juicePos.size   + '%';
+  juice.style.transform = S.juicePos.rotate ? 'rotate('+S.juicePos.rotate+'deg)' : '';
+}
+
+function applyLogoPos() {
+  const logo = document.querySelector('#poster .p-logo');
+  logo.style.top       = S.logoPos.top    + '%';
+  logo.style.left      = S.logoPos.left   + '%';
+  logo.style.width     = S.logoPos.size   + '%';
+  logo.style.transform = S.logoPos.rotate ? 'rotate('+S.logoPos.rotate+'deg)' : '';
+}
+
+function initPosSliders() {
+  const defs = [
+    { id:'foodRight',   obj:'foodPos',  key:'right',  unit:'%' },
+    { id:'foodTop',     obj:'foodPos',  key:'top',    unit:'%' },
+    { id:'foodSize',    obj:'foodPos',  key:'size',   unit:'%' },
+    { id:'foodRotate',  obj:'foodPos',  key:'rotate', unit:'°' },
+    { id:'juiceRight',  obj:'juicePos', key:'right',  unit:'%' },
+    { id:'juiceBottom', obj:'juicePos', key:'bottom', unit:'%' },
+    { id:'juiceSize',   obj:'juicePos', key:'size',   unit:'%' },
+    { id:'juiceRotate', obj:'juicePos', key:'rotate', unit:'°' },
+    { id:'logoLeft',    obj:'logoPos',  key:'left',   unit:'%' },
+    { id:'logoTop',     obj:'logoPos',  key:'top',    unit:'%' },
+    { id:'logoSize',    obj:'logoPos',  key:'size',   unit:'%' },
+    { id:'logoRotate',  obj:'logoPos',  key:'rotate', unit:'°' },
+  ];
+  defs.forEach(({ id, obj, key, unit }) => {
+    const slider = document.getElementById(id);
+    const valEl  = document.getElementById(id + 'Val');
+    slider.value = S[obj][key];
+    valEl.textContent = S[obj][key] + unit;
+    slider.addEventListener('input', () => {
+      S[obj][key] = parseFloat(slider.value);
+      valEl.textContent = slider.value + unit;
+      if (obj === 'logoPos') applyLogoPos(); else applyCirclePos();
+    });
+  });
+  applyCirclePos();
+  applyLogoPos();
+}
+
+function togglePosPanel() {
+  document.getElementById('posTgl').classList.toggle('open');
+  document.getElementById('posPanel').classList.toggle('open');
+}
+
+function scalePoster() {
+  const panel = document.getElementById('posterPanel'), wrap = document.getElementById('psw');
+  const PW=432, PH=768;
+  const s = Math.min((panel.clientWidth-44)/PW, (panel.clientHeight-44)/PH, 1);
+  wrap.style.transform='scale('+s+')';
+  wrap.style.transformOrigin='top center';
+  wrap.style.marginBottom=(PH*s-PH)+'px';
+}
+
+/* ── CONTEXT MENU ── */
+let _ctxItems=[];
+function openCtxMenu(anchorOrPos, items) {
+  _ctxItems=items;
+  const menu=document.getElementById('ctxMenu');
+  menu.innerHTML=items.map((it,i)=>
+    `<div class="ctx-item ${it.danger?'danger':''}" data-ci="${i}">${it.icon} ${escHtml(it.label)}</div>`
+  ).join('');
+  menu.querySelectorAll('.ctx-item').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const i=parseInt(el.dataset.ci);
+      closeCtxMenu(); _ctxItems[i].action();
+    });
+  });
+  let x, y, refTop;
+  if (typeof anchorOrPos.getBoundingClientRect === 'function') {
+    const r=anchorOrPos.getBoundingClientRect();
+    x=r.left; y=r.bottom+5; refTop=r.top;
+  } else {
+    x=anchorOrPos.x; y=anchorOrPos.y+5; refTop=anchorOrPos.y;
+  }
+  menu.style.left=x+'px'; menu.style.top=y+'px';
+  menu.classList.add('open');
+  requestAnimationFrame(()=>{
+    const mr=menu.getBoundingClientRect();
+    if(mr.right>window.innerWidth-8)  menu.style.left=(window.innerWidth-mr.width-8)+'px';
+    if(mr.bottom>window.innerHeight-8) menu.style.top=(refTop-mr.height-5)+'px';
+  });
+}
+function closeCtxMenu(){document.getElementById('ctxMenu').classList.remove('open');}
+
+/* ── PHOTOS ── */
+const DEFAULT_IMGS    = { food:'image 1.png', juice:'image 2.png' };
+const CUSTOM_DEFAULTS = { food: null, juice: null };
+const LP_PHOTO_MS     = 900;
+
+function getEffectiveDefault(type) {
+  return CUSTOM_DEFAULTS[type] || DEFAULT_IMGS[type];
+}
+
+function initPhotoSlots() {
+  // Charger les photos par défaut personnalisées en premier
+  ['food','juice'].forEach(type => {
+    const savedDef = localStorage.getItem('presto_default_'+type);
+    if (savedDef) {
+      CUSTOM_DEFAULTS[type] = savedDef;
+      S[type+'Src'] = savedDef;
+      const Cap = type==='food' ? 'Food' : 'Juice';
+      document.getElementById('p'+Cap+'Img').src = savedDef;
+      const prev = document.getElementById('prev'+Cap);
+      prev.src = savedDef; prev.style.display = 'block';
+    }
+  });
+
+  ['food','juice'].forEach(type => {
+    const slot  = document.getElementById('pslot-'+type);
+    const input = document.getElementById('pfile-'+type);
+    const Cap   = type==='food' ? 'Food' : 'Juice';
+
+    // Restaurer la photo courante (custom) depuis localStorage
+    const saved = localStorage.getItem('presto_photo_'+type);
+    if (saved) {
+      S[type+'Src'] = saved;
+      document.getElementById('p'+Cap+'Img').src = saved;
+      const prev = document.getElementById('prev'+Cap);
+      prev.src = saved; prev.style.display = 'block';
+      slot.dataset.custom = '1';
+    }
+
+    // File input → save + apply
+    input.addEventListener('change', () => {
+      const file = input.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        const src = e.target.result;
+        S[type+'Src'] = src;
+        document.getElementById('p'+Cap+'Img').src = src;
+        const p = document.getElementById('prev'+Cap);
+        p.src = src; p.style.display = 'block';
+        slot.dataset.custom = '1';
+        try { localStorage.setItem('presto_photo_'+type, src); } catch(_) {}
+        renderPoster();
+      };
+      reader.readAsDataURL(file);
+      input.value = '';
+    });
+
+    // Click = open picker (unless just did long-press)
+    let lpTimer=null, didLP=false, downPos=null;
+    slot.addEventListener('click', e => {
+      if (didLP) { didLP=false; return; }
+      input.click();
+    });
+
+    // Right-click = context menu at cursor
+    slot.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      showPhotoCtx(type, {x: e.clientX, y: e.clientY});
+    });
+
+    // Long-press (pointer events)
+    slot.addEventListener('pointerdown', e => {
+      downPos={x:e.clientX,y:e.clientY}; didLP=false;
+      lpTimer=setTimeout(()=>{
+        didLP=true;
+        showPhotoCtx(type, {x:downPos.x, y:downPos.y});
+      }, LP_PHOTO_MS);
+    });
+    slot.addEventListener('pointermove', e => {
+      if (!downPos) return;
+      if (Math.hypot(e.clientX-downPos.x,e.clientY-downPos.y)>8) { clearTimeout(lpTimer); downPos=null; }
+    });
+    slot.addEventListener('pointerup',     () => { clearTimeout(lpTimer); downPos=null; });
+    slot.addEventListener('pointercancel', () => { clearTimeout(lpTimer); downPos=null; });
+  });
+}
+
+function showPhotoCtx(type, pos) {
+  const isCustom = !!document.getElementById('pslot-'+type).dataset.custom;
+  const items = [
+    { icon:'🔄', label:'Remplacer la photo', action: () => document.getElementById('pfile-'+type).click() },
+  ];
+  if (isCustom) {
+    items.push({ icon:'↩️', label:'Remettre par défaut', danger: true, action: () => resetPhoto(type) });
+    items.push({ icon:'⭐', label:'Définir comme photo par défaut', action: () => setAsDefault(type) });
+  }
+  openCtxMenu(pos, items);
+}
+
+function resetPhoto(type) {
+  localStorage.removeItem('presto_photo_'+type);
+  const slot = document.getElementById('pslot-'+type);
+  delete slot.dataset.custom;
+  const Cap = type==='food' ? 'Food' : 'Juice';
+  const def = getEffectiveDefault(type);
+  S[type+'Src'] = def;
+  document.getElementById('p'+Cap+'Img').src = def;
+  const prev = document.getElementById('prev'+Cap);
+  if (def.startsWith('data:')) { prev.src = def; prev.style.display = 'block'; }
+  else { prev.style.display = 'none'; prev.src = ''; }
+  renderPoster();
+  showToast('Photo remise par défaut', 'info');
+}
+
+function setAsDefault(type) {
+  const src = S[type+'Src'];
+  CUSTOM_DEFAULTS[type] = src;
+  try { localStorage.setItem('presto_default_'+type, src); } catch(e) {}
+  // Cette photo devient la nouvelle photo par défaut — elle n'est plus "custom"
+  localStorage.removeItem('presto_photo_'+type);
+  const slot = document.getElementById('pslot-'+type);
+  delete slot.dataset.custom;
+  showToast('Définie comme nouvelle photo par défaut ⭐', 'ok');
+}
+
+/* ── MODAL ── */
+let _modalCb=null;
+function openModal(title,defVal,cb){
+  _modalCb=cb;
+  document.getElementById('modalTtl').textContent=title;
+  const inp=document.getElementById('modalInp');
+  inp.value=defVal||'';
+  document.getElementById('modalOv').classList.add('open');
+  setTimeout(()=>{inp.focus();inp.select();},120);
+}
+function closeModal(){document.getElementById('modalOv').classList.remove('open');_modalCb=null;}
+function confirmModal(){const v=document.getElementById('modalInp').value;if(_modalCb)_modalCb(v);closeModal();}
+
+/* ── EXPORT PNG ── */
+function dlBlob(blob, filename){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
+
+function canvasToBlob(canvas, type, quality) {
+  return new Promise((res, rej) =>
+    canvas.toBlob(b => b ? res(b) : rej(new Error('Blob null — canvas peut-être trop grand')), type, quality)
+  );
+}
+
+function toDataURL(img) {
+  return new Promise(res => {
+    if (!img.src || img.src.startsWith('data:') || !img.naturalWidth) { res(null); return; }
+    try {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext('2d').drawImage(img, 0, 0);
+      res(c.toDataURL('image/png'));
+    } catch(e) { res(null); }
+  });
+}
+
+async function h2c(scale) {
+  const poster = document.getElementById('poster');
+
+  // ── Patch createPattern : corrige le bug html2canvas "canvas 0×0" ──
+  // html2canvas crée parfois un canvas vide (0px) pour certains backgrounds CSS.
+  // On intercepte l'appel et on force les dimensions à 1×1 minimum.
+  const _origCP = CanvasRenderingContext2D.prototype.createPattern;
+  CanvasRenderingContext2D.prototype.createPattern = function(img, rep) {
+    if (img instanceof HTMLCanvasElement) {
+      if (!img.width)  img.width  = 1;
+      if (!img.height) img.height = 1;
+    }
+    return _origCP.call(this, img, rep);
+  };
+
+  // Convertir toutes les images URL en data URLs
+  const imgs = Array.from(poster.querySelectorAll('img'));
+  const swapped = [];
+  for (const img of imgs) {
+    if (img.src && !img.src.startsWith('data:') && img.naturalWidth > 0) {
+      const du = await toDataURL(img);
+      if (du) { swapped.push([img, img.src]); img.src = du; }
+    }
+  }
+
+  try {
+    return await html2canvas(poster, {
+      scale, useCORS:false, allowTaint:true, backgroundColor:'#111',
+      logging:false, imageTimeout:20000, removeContainer:true, width:432, height:768,
+    });
+  } finally {
+    CanvasRenderingContext2D.prototype.createPattern = _origCP;
+    swapped.forEach(([img, src]) => { img.src = src; });
+  }
+}
+
+// Rendu via dom-to-image-more (moteur natif du navigateur = identique au preview).
+// Replie sur html2canvas si dom-to-image échoue.
+async function renderCanvas(scale) {
+  const node = document.getElementById('poster');
+  const W = 432, H = 768;
+
+  if (typeof domtoimage !== 'undefined') {
+    try {
+      await document.fonts.ready;
+      if (window._gFontsReady) await _gFontsReady;
+      const dataUrl = await domtoimage.toPng(node, {
+        width:  W * scale,
+        height: H * scale,
+        bgcolor: '#111',
+        cacheBust: true,
+        style: {
+          transform: 'scale(' + scale + ')',
+          transformOrigin: 'top left',
+          margin: '0',
+        },
+      });
+      const img = new Image();
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = dataUrl; });
+      if (!img.naturalWidth) throw new Error('image vide');
+      const canvas = document.createElement('canvas');
+      canvas.width = W * scale; canvas.height = H * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      return canvas;
+    } catch (e) {
+      console.warn('dom-to-image a échoué, repli sur html2canvas:', e);
+    }
+  }
+  return h2c(scale);
+}
+
+async function exportPNG(scale){
+  setBusy(true); showToast('🔄 Rendu '+scale+'×…','info');
+  await document.fonts.ready;
+  try{
+    const canvas = await renderCanvas(scale);
+    const blob   = await canvasToBlob(canvas,'image/png',1.0);
+    dlBlob(blob,'menu-presto-786-'+scale+'x.png');
+    showToast('✅ '+canvas.width+'×'+canvas.height+' px exporté','ok');
+  }catch(e){
+    showToast('❌ '+e.message,'err');
+    console.error(e);
+  }
+  setBusy(false);
+}
+
+/* ── EXPORT PDF ── */
+async function shareMenu() {
+  setBusy(true); showToast('🔄 Préparation…','info');
+  await document.fonts.ready;
+  try {
+    const canvas = await renderCanvas(4);
+    const blob   = await canvasToBlob(canvas,'image/png',1.0);
+    const file   = new File([blob], 'menu-presto-786.png', { type:'image/png' });
+
+    if (navigator.share && navigator.canShare && navigator.canShare({ files:[file] })) {
+      await navigator.share({
+        title: 'Menu du jour — Presto Café 786',
+        files: [file],
+      });
+      showToast('✅ Partagé !','ok');
+    } else {
+      // Navigateur sans Web Share API → téléchargement direct
+      dlBlob(blob, 'menu-presto-786.png');
+      showToast('✅ Image téléchargée (partage non supporté)','ok');
+    }
+  } catch(e) {
+    if (e.name !== 'AbortError') { showToast('❌ '+e.message,'err'); console.error(e); }
+  }
+  setBusy(false);
+}
+
+/* ── UTILS ── */
+function setBusy(b){['btnPngHD','btnShare'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=b;});}
+let _toastT;
+function showToast(msg,type){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='show '+(type||'info');
+  clearTimeout(_toastT);_toastT=setTimeout(()=>{t.className='';},3400);
+}
+function escHtml(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
