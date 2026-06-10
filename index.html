@@ -58,12 +58,50 @@ html,body{font-family:'Raleway',sans-serif;background:var(--ui-bg);color:var(--u
 .tb-sub{font-size:.6rem;color:var(--ui-muted);text-transform:uppercase;letter-spacing:3px}
 .tb-sep{flex:1}
 .tb-badge{background:var(--ui-card);border:1px solid var(--ui-border);border-radius:20px;padding:3px 12px;font-size:.62rem;color:var(--ui-muted)}
-
 /* LAYOUT */
 .layout{display:flex;height:calc(100vh - 52px)}
 
 /* EDITOR */
 .editor{width:350px;flex-shrink:0;background:var(--ui-panel);border-right:1px solid var(--ui-border);padding:16px;overflow-y:auto}
+
+/* ── RESPONSIVE MOBILE ── */
+@media(max-width:600px){
+  .tb-title{font-size:.88rem}
+  .tb-sub{display:none}
+
+  /* Layout vertical : éditeur en haut, aperçu en dessous */
+  .layout{
+    flex-direction:column;
+    height:auto;
+    overflow-y:auto;
+    overflow-x:hidden;
+  }
+
+  /* L'éditeur prend toute la largeur, hauteur auto */
+  .editor{
+    width:100%;
+    height:auto;
+    max-height:none;
+    overflow-y:visible;
+    border-right:none;
+    border-bottom:2px solid var(--ui-border);
+    flex-shrink:0;
+  }
+
+  /* Le poster panel en dessous, centré */
+  .poster-panel{
+    width:100%;
+    padding:16px 8px 32px;
+    overflow:visible;
+    justify-content:center;
+  }
+
+  /* La topbar reste fixe en haut */
+  .topbar{position:sticky;top:0;z-index:100}
+
+  /* Le body doit scroller */
+  html,body{overflow:auto;height:auto}
+}
 .editor::-webkit-scrollbar{width:4px}
 .editor::-webkit-scrollbar-track{background:#0a0a14}
 .editor::-webkit-scrollbar-thumb{background:#333355;border-radius:4px}
@@ -1123,10 +1161,18 @@ function togglePosPanel() {
   document.getElementById('posPanel').classList.toggle('open');
 }
 
+
 function scalePoster() {
   const panel = document.getElementById('posterPanel'), wrap = document.getElementById('psw');
   const PW=432, PH=768;
-  const s = Math.min((panel.clientWidth-44)/PW, (panel.clientHeight-44)/PH, 1);
+  const mobile = window.innerWidth <= 600;
+  let s;
+  if (mobile) {
+    // Sur mobile : adapter à la largeur disponible uniquement
+    s = Math.min((panel.clientWidth - 16) / PW, 1);
+  } else {
+    s = Math.min((panel.clientWidth-44)/PW, (panel.clientHeight-44)/PH, 1);
+  }
   wrap.style.transform='scale('+s+')';
   wrap.style.transformOrigin='top center';
   wrap.style.marginBottom=(PH*s-PH)+'px';
@@ -1311,6 +1357,16 @@ function dlBlob(blob, filename){
   setTimeout(()=>URL.revokeObjectURL(url), 2000);
 }
 
+// Convertit un Blob en data URL base64 (pour AndroidBridge)
+function blobToBase64(blob){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>res(r.result);
+    r.onerror=rej;
+    r.readAsDataURL(blob);
+  });
+}
+
 function canvasToBlob(canvas, type, quality) {
   return new Promise((res, rej) =>
     canvas.toBlob(b => b ? res(b) : rej(new Error('Blob null — canvas peut-être trop grand')), type, quality)
@@ -1407,9 +1463,18 @@ async function exportPNG(scale){
   await document.fonts.ready;
   try{
     const canvas = await renderCanvas(scale);
+    const fname  = 'menu-presto-786-'+scale+'x.png';
     const blob   = await canvasToBlob(canvas,'image/png',1.0);
-    dlBlob(blob,'menu-presto-786-'+scale+'x.png');
-    showToast('✅ '+canvas.width+'×'+canvas.height+' px exporté','ok');
+
+    // Android WebView : utilise le pont natif pour partager/sauvegarder
+    if (window.AndroidBridge) {
+      const b64 = await blobToBase64(blob);
+      window.AndroidBridge.shareFile(b64, fname);
+      showToast('✅ '+canvas.width+'×'+canvas.height+' px — partage…','ok');
+    } else {
+      dlBlob(blob, fname);
+      showToast('✅ '+canvas.width+'×'+canvas.height+' px exporté','ok');
+    }
   }catch(e){
     showToast('❌ '+e.message,'err');
     console.error(e);
@@ -1417,15 +1482,25 @@ async function exportPNG(scale){
   setBusy(false);
 }
 
-/* ── EXPORT PDF ── */
+/* ── PARTAGE ── */
 async function shareMenu() {
   setBusy(true); showToast('🔄 Préparation…','info');
   await document.fonts.ready;
   try {
     const canvas = await renderCanvas(4);
     const blob   = await canvasToBlob(canvas,'image/png',1.0);
-    const file   = new File([blob], 'menu-presto-786.png', { type:'image/png' });
 
+    // Android WebView : pont natif → feuille de partage Android
+    if (window.AndroidBridge) {
+      const b64 = await blobToBase64(blob);
+      window.AndroidBridge.shareFile(b64, 'menu-presto-786.png');
+      showToast('✅ Partage en cours…','ok');
+      setBusy(false);
+      return;
+    }
+
+    // Navigateur : Web Share API
+    const file = new File([blob], 'menu-presto-786.png', { type:'image/png' });
     if (navigator.share && navigator.canShare && navigator.canShare({ files:[file] })) {
       await navigator.share({
         title: 'Menu du jour — Presto Café 786',
@@ -1433,9 +1508,9 @@ async function shareMenu() {
       });
       showToast('✅ Partagé !','ok');
     } else {
-      // Navigateur sans Web Share API → téléchargement direct
+      // Fallback : téléchargement direct
       dlBlob(blob, 'menu-presto-786.png');
-      showToast('✅ Image téléchargée (partage non supporté)','ok');
+      showToast('✅ Image téléchargée','ok');
     }
   } catch(e) {
     if (e.name !== 'AbortError') { showToast('❌ '+e.message,'err'); console.error(e); }
