@@ -1467,6 +1467,7 @@ async function renderCanvas(scale) {
       return canvas;
     } catch (e) {
       console.warn('dom-to-image a échoué, repli sur html2canvas:', e);
+      showToast('⚠️ Rendu alternatif utilisé (qualité réduite)','info');
     }
   }
   return h2c(scale);
