@@ -311,7 +311,7 @@ html,body{font-family:'Raleway',sans-serif;background:var(--ui-bg);color:var(--u
 #poster .p-pnom{font-family:'Playfair Display',serif;font-weight:700;font-style:italic;
   font-size:17.5px;color:#fffde7;text-shadow:1px 1px 4px rgba(0,0,0,.8);flex-shrink:1;min-width:0}
 #poster .p-pdots{flex:1;border-bottom:1px dotted rgba(255,255,255,.38);margin:0 6px 3px}
-#poster .p-prix{font-family:'Playfair Display',serif;font-weight:900;font-size:18.5px;
+#poster .p-prix{font-family:'Playfair Display',serif;font-weight:900;font-size:20.5px;
   color:#f0c040;text-shadow:1px 2px 5px rgba(0,0,0,.7);white-space:nowrap;flex-shrink:0}
 #poster .p-acc{font-size:12.5px;color:rgba(255,255,255,.62);padding:1px 0 2px;font-style:italic;line-height:1.4}
 /* Shared rougails block */
@@ -323,7 +323,7 @@ html,body{font-family:'Raleway',sans-serif;background:var(--ui-bg);color:var(--u
 /* Barquette line */
 #poster .p-barq-line{flex-shrink:0;padding:3px 8px 2px 13px}
 #poster .p-barq-lbl{font-size:11.5px;font-style:italic;color:rgba(255,255,255,.6);margin-right:4px}
-#poster .p-barq-price{font-size:12px;font-weight:800;color:#f0c040;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+#poster .p-barq-price{font-size:14px;font-weight:800;color:#f0c040;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 
 /* Plat separator */
 #poster .p-patsep{flex-shrink:0;text-align:center;font-size:11px;
@@ -334,7 +334,7 @@ html,body{font-family:'Raleway',sans-serif;background:var(--ui-bg);color:var(--u
 #poster .p-snom{font-size:13.5px;font-weight:700;color:#f0c040;text-transform:uppercase;
   letter-spacing:.5px;text-shadow:0 1px 4px rgba(0,0,0,.6);white-space:nowrap}
 #poster .p-sdots{flex:1;border-bottom:1px dotted rgba(255,255,255,.22);margin:0 5px 2px}
-#poster .p-sprix{font-size:13.5px;font-weight:700;color:#fff;white-space:nowrap}
+#poster .p-sprix{font-size:15.5px;font-weight:700;color:#fff;white-space:nowrap}
 
 /* Decorative separator between sections */
 #poster .p-sep{flex:1 1 0;min-height:14px;max-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:4px 0}
@@ -351,7 +351,7 @@ html,body{font-family:'Raleway',sans-serif;background:var(--ui-bg);color:var(--u
   letter-spacing:.7px;text-shadow:0 1px 4px rgba(0,0,0,.7);white-space:nowrap}
 #poster .p-jvol{font-size:12px;color:rgba(255,255,255,.5);margin-left:4px;white-space:nowrap}
 #poster .p-jdots{flex:1;border-bottom:1px dotted rgba(255,255,255,.25);margin:0 5px 2px}
-#poster .p-jprix{font-size:14px;font-weight:800;color:#fff;white-space:nowrap;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+#poster .p-jprix{font-size:16px;font-weight:800;color:#fff;white-space:nowrap;text-shadow:0 1px 4px rgba(0,0,0,.7)}
 
 @media print{
   body{background:#000;overflow:visible}
@@ -1421,8 +1421,11 @@ async function h2c(scale) {
   }
 }
 
-// Rendu via dom-to-image-more (moteur natif du navigateur = identique au preview).
-// Replie sur html2canvas si dom-to-image échoue.
+// Rendu via dom-to-image-more (moteur natif = identique au preview).
+// Utilise l'option `scale` native pour la haute résolution.
+// Désactive temporairement le <link> Google Fonts cross-origin qui cause un
+// SecurityError empêchant dom-to-image-more d'embedder les polices dans le SVG.
+// Le <style id="gfonts-embedded"> (base64) prend le relais.
 async function renderCanvas(scale) {
   const node = document.getElementById('poster');
   const W = 432, H = 768;
@@ -1431,24 +1434,35 @@ async function renderCanvas(scale) {
     try {
       await document.fonts.ready;
       if (window._gFontsReady) await _gFontsReady;
-      const dataUrl = await domtoimage.toPng(node, {
-        width:  W * scale,
-        height: H * scale,
-        bgcolor: '#111',
-        cacheBust: true,
-        style: {
-          transform: 'scale(' + scale + ')',
-          transformOrigin: 'top left',
-          margin: '0',
-        },
-      });
+
+      // Masquer le <link> Google Fonts cross-origin pour éviter le SecurityError CORS
+      const gfLinks = Array.from(document.querySelectorAll('link[href*="fonts.googleapis.com"]'));
+      gfLinks.forEach(l => { l.disabled = true; });
+
+      let dataUrl;
+      try {
+        dataUrl = await domtoimage.toPng(node, {
+          width:   W,      // taille CSS naturelle du poster (432px)
+          height:  H,      // (768px)
+          scale:   scale,  // densité pixel — output final = W*scale × H*scale px
+          bgcolor: '#111',
+          cacheBust: true,
+        });
+      } finally {
+        // Toujours réactiver les polices après le render
+        gfLinks.forEach(l => { l.disabled = false; });
+      }
+
       const img = new Image();
       await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = dataUrl; });
       if (!img.naturalWidth) throw new Error('image vide');
+
       const canvas = document.createElement('canvas');
-      canvas.width = W * scale; canvas.height = H * scale;
+      canvas.width  = img.naturalWidth;   // W * scale
+      canvas.height = img.naturalHeight;  // H * scale
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#111';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0);
       return canvas;
     } catch (e) {
