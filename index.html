@@ -524,34 +524,62 @@ const S = {
 
 const ASSETS = { bg:PRESTO_IMG.bg, logo:PRESTO_IMG.logo };
 
-/* ── PERSISTANCE PRIX / VOLUMES ── */
-function savePriceSession() {
+/* ── PERSISTANCE COMPLÈTE DE L'ÉTAT ── */
+const SAVE_KEY = 'presto_state_v2';
+
+function saveState() {
   try {
-    localStorage.setItem('sv_prix_session', JSON.stringify({
-      platPrix: S.plats.map(p => p.prix),
-      jus: S.jus.map(j => ({ vol: j.vol, prix: j.prix })),
-      barquette: S.barquette,
-      tel1: S.tel1,
-      tel2: S.tel2,
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      plats:       S.plats,          // nom + prix + acc + accOn
+      rougails:    S.rougails,
+      rougailsOn:  S.rougailsOn,
+      barquette:   S.barquette,
+      salades:     S.salades,
+      showSalades: S.showSalades,
+      jus:         S.jus,            // nom + vol + prix
+      tel1:        S.tel1,
+      tel2:        S.tel2,
+      foodPos:     S.foodPos,
+      juicePos:    S.juicePos,
+      logoPos:     S.logoPos,
     }));
   } catch(e) {}
 }
 
-function applyPriceSession() {
+function loadState() {
   try {
-    const raw = localStorage.getItem('sv_prix_session');
-    if (!raw) return;
-    const saved = JSON.parse(raw);
-    if (saved.platPrix) saved.platPrix.forEach((prix, i) => { if (S.plats[i]) S.plats[i].prix = prix; });
-    if (saved.jus && saved.jus.length) {
-      while (S.jus.length < saved.jus.length) S.jus.push({ nom:'', vol:'25cl', prix:'2.50€' });
-      saved.jus.forEach((j, i) => { if (S.jus[i]) { S.jus[i].vol = j.vol; S.jus[i].prix = j.prix; } });
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) {
+      // Compatibilité : tenter l'ancien format
+      const old = localStorage.getItem('sv_prix_session');
+      if (old) {
+        const saved = JSON.parse(old);
+        if (saved.platPrix) saved.platPrix.forEach((prix, i) => { if (S.plats[i]) S.plats[i].prix = prix; });
+        if (saved.jus) saved.jus.forEach((j, i) => { if (S.jus[i]) { S.jus[i].vol = j.vol; S.jus[i].prix = j.prix; } });
+        if (saved.barquette !== undefined) S.barquette = saved.barquette;
+        if (saved.tel1) S.tel1 = saved.tel1;
+        if (saved.tel2) S.tel2 = saved.tel2;
+      }
+      return;
     }
-    if (saved.barquette !== undefined) S.barquette = saved.barquette;
-    if (saved.tel1) S.tel1 = saved.tel1;
-    if (saved.tel2) S.tel2 = saved.tel2;
+    const saved = JSON.parse(raw);
+    if (saved.plats)       S.plats       = saved.plats;
+    if (saved.rougails)    S.rougails    = saved.rougails;
+    if (saved.rougailsOn)  S.rougailsOn  = saved.rougailsOn;
+    if (saved.barquette  !== undefined) S.barquette  = saved.barquette;
+    if (saved.salades)     S.salades     = saved.salades;
+    if (saved.showSalades !== undefined) S.showSalades = saved.showSalades;
+    if (saved.jus)         S.jus         = saved.jus;
+    if (saved.tel1)        S.tel1        = saved.tel1;
+    if (saved.tel2)        S.tel2        = saved.tel2;
+    if (saved.foodPos)     S.foodPos     = saved.foodPos;
+    if (saved.juicePos)    S.juicePos    = saved.juicePos;
+    if (saved.logoPos)     S.logoPos     = saved.logoPos;
   } catch(e) {}
 }
+
+// Alias pour compatibilité avec les anciens appels directs
+function savePriceSession() { saveState(); }
 
 /* ── BASE DE DONNÉES AUTOCOMPLÉTION ── */
 const BASE_PLATS = [
@@ -697,7 +725,7 @@ function makeSugg(inp, db, baseDb, lsKey, onSelect) {
 
 /* ── INIT ── */
 window.addEventListener('DOMContentLoaded', () => {
-  applyPriceSession(); // restaure prix/volumes de la dernière session
+  loadState(); // restaure tout l'état de la dernière session
   document.getElementById('pbgImg').src = ASSETS.bg;
   document.getElementById('pLogoImg').src  = ASSETS.logo;
   document.getElementById('pFoodImg').src  = S.foodSrc;
@@ -1028,6 +1056,7 @@ function addJus() {
 
 /* ── RENDER POSTER ── */
 function renderPoster() {
+  saveState();
   let col = '';
   col += '<div class="p-col-top"></div>';
 
